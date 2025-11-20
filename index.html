@@ -259,7 +259,7 @@ button:active {
 <div id="submissionForm" class="section">
 <div class="section-header">
 <h3>Submit Task for Analytics (Triggers WS Update)</h3>
-<p style="margin: 0 0 16px 0; color: var(--text-secondary);">Fill in details and submit to http://localhost:8080/api/v1/analytics/submit-task. This should trigger a live update via WebSocket if connected.</p>
+<p style="margin: 0 0 16px 0; color: var(--text-secondary);">Fill in details and submit to https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev/api/v1/analytics/submit-task. This should trigger a live update via WebSocket if connected.</p>
 </div>
 <label for="userId">User ID (from profile):</label>
 <input id="userId" type="text" placeholder="e.g., 7f9bcb99-b7e7-47eb-b962-51752379decb" value="f2aee58b-e9bf-4379-9b20-f6dc5421e48b">
@@ -470,7 +470,7 @@ logDiv.scrollTop = logDiv.scrollHeight;
 // Auto-check auth on load
 window.addEventListener('load', async () => {
 try {
-const response = await fetch('http://localhost:8080/health', { credentials: 'include' });
+const response = await fetch('https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev', { credentials: 'include' });
 const authSpan = document.getElementById('authStatus');
 authSpan.textContent = response.ok ? 'Valid Cookie' : 'Login Needed';
 authSpan.className = response.ok ? 'status auth-valid' : 'status auth-invalid';
