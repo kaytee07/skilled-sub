@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Dashboard Live Updates</title>
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.2.1/bundles/stomp.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary-color: #3b82f6;
+  --secondary-color: #1e40af;
+  --bg-color: #f8fafc;
+  --card-bg: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  margin: 0;
+  padding: 20px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+h2 {
+  color: var(--primary-color);
+  margin-bottom: 30px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.section-header h3 {
+  margin: 0;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.section-header .status {
+  margin-left: auto;
+  font-weight: 500;
+}
+
+.status.connected { color: #10b981; }
+.status.disconnected { color: #ef4444; }
+.status.auth-valid { color: #10b981; }
+.status.auth-invalid { color: #f59e0b; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.controls label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 80px;
+}
+
+.controls input[type="text"],
+.controls input[type="email"],
+.controls input[type="password"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.controls input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+button {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  font-size: 14px;
+}
+
+button:hover {
+  background: var(--secondary-color);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+#userData {
+  display: none;
+}
+
+#userProfile {
+  background: #f1f5f9;
+  padding: 16px;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+#submissionForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+#submissionForm label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+#submissionForm input,
+#submissionForm select,
+#submissionForm textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+#submissionForm input:focus,
+#submissionForm select:focus,
+#submissionForm textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+#submissionForm textarea {
+  font-family: 'Courier New', monospace;
+  resize: vertical;
+}
+
+#log {
+  height: 400px;
+  overflow-y: auto;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#log pre {
+  margin: 0 0 8px 0;
+  padding: 4px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+#log pre:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .controls label,
+  .controls input {
+    width: 100%;
+  }
+  
+  #submissionForm {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>Dashboard Live Updates</h2>
+
+<div class="section">
+<div class="section-header">
+<h3>Connection Controls</h3>
+<div>
+<span class="status" id="status">Disconnected</span>
+<span style="margin-left: 20px;">Auth: <span class="status" id="authStatus">No Cookie</span></span>
+</div>
+</div>
+<div class="controls">
+<label for="serverUrl">WebSocket URL:</label>
+<input id="serverUrl" type="text" value="https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev/ws-analytics">
+</div>
+<div class="controls">
+<label for="email">Email:</label>
+<input id="email" type="email" value="">
+<label for="password">Password:</label>
+<input id="password" type="password" value="13G*jumpstreet123">
+</div>
+<div class="controls">
+<button onclick="login()">Login (Set Cookie)</button>
+<button onclick="fetchUserData()">Fetch User Data</button>
+<button onclick="connect()">Connect</button>
+<button onclick="disconnect()">Disconnect</button>
+</div>
+</div>
+
+<div id="userData" class="section">
+<div class="section-header">
+<h3>User Profile</h3>
+</div>
+<pre id="userProfile">No data yet</pre>
+</div>
+
+<div id="submissionForm" class="section">
+<div class="section-header">
+<h3>Submit Task for Analytics (Triggers WS Update)</h3>
+<p style="margin: 0 0 16px 0; color: var(--text-secondary);">Fill in details and submit to http://localhost:8080/api/v1/analytics/submit-task. This should trigger a live update via WebSocket if connected.</p>
+</div>
+<label for="userId">User ID (from profile):</label>
+<input id="userId" type="text" placeholder="e.g., 7f9bcb99-b7e7-47eb-b962-51752379decb" value="f2aee58b-e9bf-4379-9b20-f6dc5421e48b">
+<label for="skillId">Skill ID:</label>
+<input id="skillId" type="text" placeholder="e.g., 98ab6a53-f394-4c77-a013-a95bc5e45118" value="">
+<label for="taskId">Task ID:</label>
+<input id="taskId" type="text" placeholder="e.g., C++-T-01" value="C++-T-01">
+<label for="taskDescription">Task Description:</label>
+<input id="taskDescription" type="text" placeholder="e.g., Implement a simple thread pool." value="Implement a simple thread pool.">
+<label for="totalXpEarned">Total XP Earned:</label>
+<input id="totalXpEarned" type="number" placeholder="e.g., 550" value="550">
+<label for="passed">Passed:</label>
+<select id="passed">
+<option value="true">Yes</option>
+<option value="false">No</option>
+</select>
+<label for="taskType">Task Type:</label>
+<select id="taskType">
+<option value="Coding">Coding</option>
+<option value="Quiz">Quiz</option>
+</select>
+<label for="taskDifficulty">Task Difficulty:</label>
+<select id="taskDifficulty">
+<option value="EASY">EASY</option>
+<option value="MEDIUM">MEDIUM</option>
+<option value="HARD">HARD</option>
+</select>
+<label for="rubricsScores">Rubrics Scores (JSON):</label>
+<textarea id="rubricsScores" rows="3" placeholder='e.g., {"Clarity": {"score": 5, "maxScore": 25, "percentage": 20}, "Efficiency": {"score": 5, "maxScore": 25, "percentage": 20}}'>{"Clarity": {"score": 5, "maxScore": 25, "percentage": 20}, "Efficiency": {"score": 5, "maxScore": 25, "percentage": 20}}</textarea>
+<label for="completedAt">Completed At (ISO):</label>
+<input id="completedAt" type="datetime-local" value="2025-11-08T19:05">
+<div style="grid-column: 1 / -1; text-align: center; margin-top: 16px;">
+<button onclick="submitTask()">Submit Task</button>
+</div>
+</div>
+
+<div class="section">
+<div class="section-header">
+<h3>Incoming Updates</h3>
+</div>
+<div id="log"></div>
+</div>
+</div>
+
+<script>
+let stompClient = null;
+let connected = false;
+async function login() {
+const email = document.getElementById('email').value;
+const password = document.getElementById('password').value;
+try {
+const response = await fetch('https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev/api/v1/auth/login', { // Local gateway for cookie domain match
+// For deployed: 'https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev/api/v1/auth/login'
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ email, password }),
+credentials: 'include'
+    });
+if (response.ok) {
+document.getElementById('authStatus').textContent = 'Cookie Set';
+document.getElementById('authStatus').className = 'status auth-valid';
+log('🔑 Login success: HttpOnly cookie set');
+// Verify: Local health check
+const health = await fetch('https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev/health', { credentials: 'include' });
+log(health.ok ? '✅ Auth verified' : '⚠️ Auth check failed (whitelist /health?)');
+    } else {
+log(`❌ Login failed: ${response.status} - Check creds/server`);
+    }
+  } catch (err) {
+log(`❌ Login error: ${err.message} - Network/CORS?`);
+  }
+}
+async function fetchUserData() {
+try {
+const response = await fetch('https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev/api/v1/users/profile/me', {
+method: 'GET',
+credentials: 'include' // Sends cookie for auth
+    });
+if (response.ok) {
+const userData = await response.json();
+document.getElementById('userProfile').textContent = JSON.stringify(userData, null, 2);
+document.getElementById('userData').style.display = 'block';
+// Auto-fill userId from profile
+if (userData.id) {
+document.getElementById('userId').value = userData.id;
+}
+log('👤 User data fetched successfully');
+    } else {
+log(`❌ User fetch failed: ${response.status} - Ensure logged in`);
+document.getElementById('userData').style.display = 'none';
+    }
+  } catch (err) {
+log(`❌ User fetch error: ${err.message} - Network/CORS?`);
+document.getElementById('userData').style.display = 'none';
+  }
+}
+
+// New Function: Submit Task
+async function submitTask() {
+if (!connected) {
+log('❌ Connect to WebSocket first to see live updates!');
+return;
+}
+try {
+const submissionData = {
+userId: document.getElementById('userId').value,
+skillId: document.getElementById('skillId').value,
+taskId: document.getElementById('taskId').value,
+taskDescription: document.getElementById('taskDescription').value,
+totalXpEarned: parseInt(document.getElementById('totalXpEarned').value),
+passed: document.getElementById('passed').value === 'true',
+taskType: document.getElementById('taskType').value,
+taskDifficulty: document.getElementById('taskDifficulty').value,
+rubricsScores: JSON.parse(document.getElementById('rubricsScores').value || '{}'),
+completedAt: new Date(document.getElementById('completedAt').value).toISOString()
+};
+const response = await fetch('https://lmmqcw9520.execute-api.eu-west-1.amazonaws.com/dev/api/v1/analytics/submit-task', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(submissionData),
+credentials: 'include' // Sends auth cookie
+    });
+if (response.ok) {
+const result = await response.json();
+log(`✅ Task submitted successfully! Response: ${JSON.stringify(result, null, 2)}`);
+log('🔄 Waiting for WebSocket update... (should arrive shortly)');
+    } else {
+log(`❌ Submission failed: ${response.status} - ${response.statusText}`);
+const errorText = await response.text();
+log(`Error details: ${errorText}`);
+    }
+  } catch (err) {
+log(`❌ Submission error: ${err.message} - Check network/CORS/auth`);
+  }
+}
+function connect() {
+const socketUrl = document.getElementById('serverUrl').value;
+const socket = new SockJS(socketUrl, null, {
+transportOptions: {
+websocket: { withCredentials: true },
+xhr: { withCredentials: true },
+eventsource: { withCredentials: true },
+jsonp: false // Avoids MIME/401 issues
+    },
+withCredentials: true
+  });
+// Modern Client API: Fixes warning, adds reconnect
+stompClient = new StompJs.Client({
+webSocketFactory: () => socket, // Enables auto-reconnect
+debug: (str) => {}, // Silent; console.log(str) for verbose
+reconnectDelay: 5000,
+heartbeatIncoming: 10000,
+heartbeatOutgoing: 10000
+  });
+stompClient.onConnect = (frame) => {
+connected = true;
+document.getElementById('status').textContent = 'Connected';
+document.getElementById('status').className = 'status connected';
+log('Connected: ' + frame);
+    stompClient.subscribe('/user/queue/dashboard', (msg) => {
+      try {
+        const body = JSON.parse(msg.body);
+        log(`📈 Type: ${body}`);
+        log(`Data: ${JSON.stringify(body, null, 2)}`);
+      } catch (e) {
+        log('❌ Parse error: ' + e.message);
+      }
+    });
+ 
+
+// Keep the others for debug
+stompClient.subscribe('/user/queue/test', (msg) => console.log('Test:', msg.body));
+stompClient.subscribe('/topic/user-registry', (msg) => {
+  const body = JSON.parse(msg.body);
+  console.log('📈 Registry:', JSON.stringify(body.userMap?.['7f9bcb99-b7e7-47eb-b962-51752379decb'], null, 2));  // Target this UUID
+});
+// stompClient.subscribe('/topic/user-registry', (msg) => {
+//     const body = JSON.parse(msg.body);
+//     log(`📈 Type: ${body.type}`);
+//     log(`Data: ${JSON.stringify(body, null, 2)}`);
+// });
+log('📡 Subscribed to /user/queue/dashboard');
+  };
+stompClient.onStompError = (frame) => {
+log('❌ STOMP Error: ' + frame);
+  };
+stompClient.onWebSocketError = (error) => {
+log('❌ WebSocket Error: ' + error.message + ' (Fallbacks triggered?)');
+  };
+stompClient.activate();
+}
+function disconnect() {
+if (stompClient) {
+stompClient.deactivate();
+connected = false;
+document.getElementById('status').textContent = 'Disconnected';
+document.getElementById('status').className = 'status disconnected';
+log('Disconnected');
+  }
+}
+function log(message) {
+const logDiv = document.getElementById('log');
+const entry = document.createElement('pre');
+entry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+logDiv.appendChild(entry);
+logDiv.scrollTop = logDiv.scrollHeight;
+}
+// Auto-check auth on load
+window.addEventListener('load', async () => {
+try {
+const response = await fetch('http://localhost:8080/health', { credentials: 'include' });
+const authSpan = document.getElementById('authStatus');
+authSpan.textContent = response.ok ? 'Valid Cookie' : 'Login Needed';
+authSpan.className = response.ok ? 'status auth-valid' : 'status auth-invalid';
+  } catch {
+document.getElementById('authStatus').textContent = 'Check Connection';
+  }
+});
+</script>
+</body>
+</html>
